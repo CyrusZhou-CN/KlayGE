@@ -4,6 +4,7 @@ import math
 import struct
 import time
 
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -12,20 +13,11 @@ class IntegratedBrdfDataset:
 	def __init__(self, device, file_name):
 		with open(file_name, "rb") as file:
 			sample_count = struct.unpack("<I", file.read(4))[0]
-			self.coord_data = torch.empty(sample_count, 2)
-			self.x_data = torch.empty(sample_count)
-			self.y_data = torch.empty(sample_count)
-			sample_format = "<ffff"
-			buffer = file.read(sample_count * struct.calcsize(sample_format))
-			unpack_iter = struct.iter_unpack(sample_format, buffer)
-			for i, sample in enumerate(unpack_iter):
-				self.coord_data[i] = torch.tensor(sample[0:2])
-				self.x_data[i] = sample[2]
-				self.y_data[i] = sample[3]
-
-			self.coord_data = self.coord_data.to(device)
-			self.x_data = self.x_data.to(device)
-			self.y_data = self.y_data.to(device)
+			data = np.fromfile(file, np.float32, sample_count * 4)
+			data = data.reshape(sample_count, 4)
+			self.coord_data = torch.from_numpy(data[:, 0 : 2]).to(device)
+			self.x_data = torch.from_numpy(data[:, 2]).to(device)
+			self.y_data = torch.from_numpy(data[:, 3]).to(device)
 
 			self.output_data = self.x_data
 
