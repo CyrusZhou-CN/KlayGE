@@ -295,6 +295,7 @@ def TrainModel(device, data_set, model_desc, batch_size, learning_rate, epochs, 
 		model.load_state_dict(torch.load(pth_file_name))
 
 	model.train(True)
+	model = torch.compile(model, backend = "cudagraphs")
 	model.to(device)
 
 	criterion = nn.MSELoss(reduction = "sum")
@@ -337,6 +338,7 @@ def TrainModel(device, data_set, model_desc, batch_size, learning_rate, epochs, 
 
 def TestModel(device, data_set, model, batch_size):
 	model.train(False)
+	model = torch.compile(model, backend = "cudagraphs")
 	model.to(device)
 
 	total_mse = torch.tensor(0.0, device = device)
