@@ -39,6 +39,9 @@ class IntegratedBrdfMlpNetwork(nn.Module):
 
 		self.net = nn.Sequential(*layers)
 
+	def CopyFrom(self, model):
+		self.net = model.net
+
 	def forward(self, x):
 		return self.net(x).squeeze(1)
 
@@ -82,6 +85,10 @@ class IntegratedBrdfExpression(nn.Module):
 			init_factors = init_factors.t().reshape(num_factors)
 
 		self.weights = nn.Parameter(init_factors)
+
+	def CopyFrom(self, model):
+		self.order = model.order
+		self.weights = model.weights
 
 	def forward(self, x):
 		n_dot_v, glossiness = torch.tensor_split(x, 2, dim = 1)
@@ -242,6 +249,9 @@ class IntegratedBrdfKanNetwork(nn.Module):
 
 		self.net = nn.Sequential(*layers)
 
+	def CopyFrom(self, model):
+		self.net = model.net
+
 	def forward(self, x):
 		return self.net(x).squeeze(1)
 
@@ -300,7 +310,7 @@ def TrainModel(device, data_set, model_desc, batch_size, learning_rate, epochs, 
 
 	criterion = nn.MSELoss(reduction = "sum")
 	optimizer = optim.Adam(model.parameters(), lr = learning_rate)
-	scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, "min", factor = 0.5, verbose = True)
+	scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, "min", factor = 0.5)
 
 	start = time.time()
 	min_loss = 1e10
@@ -325,7 +335,7 @@ def TrainModel(device, data_set, model_desc, batch_size, learning_rate, epochs, 
 				model.Write(file, model_desc.name)
 				file.write(f"// [{epoch + 1}] Loss: {loss}\n")
 			min_loss = loss
-		print(f"[{epoch + 1}] Loss: {loss}")
+		print(f"[{epoch + 1}] Loss: {loss}, LR: {scheduler.get_last_lr()[0]}")
 		if loss < 1e-7:
 			break
 	timespan = time.time() - start
@@ -334,11 +344,14 @@ def TrainModel(device, data_set, model_desc, batch_size, learning_rate, epochs, 
 	print(f"Min loss: {min_loss}")
 	print(f"Last learning rate: {optimizer.param_groups[0]['lr']}")
 
-	return model
+	# Revert the compile
+	model_ret = model_desc.model_class(model_desc.model_param)
+	model_ret.CopyFrom(model)
+
+	return model_ret
 
 def TestModel(device, data_set, model, batch_size):
 	model.train(False)
-	model = torch.compile(model, backend = "cudagraphs")
 	model.to(device)
 
 	total_mse = torch.tensor(0.0, device = device)
